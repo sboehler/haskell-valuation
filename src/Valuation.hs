@@ -1,4 +1,6 @@
-module Valuation where
+module Valuation
+    ( module Valuation
+    ) where
 
 import Control.Applicative
 import Control.Monad.Identity
@@ -39,9 +41,7 @@ npv w v t0 = do
     n' <- npv w v (t0 + 1) <|> return 0
     return $ 1 / (1 + w') * (n' + v')
 
-interpolate
-    :: Fractional a
-    => [(Year, a)] -> TimeValue s a
+interpolate :: Fractional a => [(Year, a)] -> TimeValue s a
 interpolate [(t0, v0)] y
     | y == t0 = return v0
     | otherwise = lift mzero

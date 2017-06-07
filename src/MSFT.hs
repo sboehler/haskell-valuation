@@ -1,4 +1,6 @@
-module MSFT where
+module MSFT
+    ( module MSFT
+    ) where
 
 import Control.Monad
 import Valuation

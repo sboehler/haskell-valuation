@@ -1,4 +1,4 @@
-module AAPL where
+module AAPL (module AAPL) where
 
 import Control.Monad
 import Valuation
@@ -74,5 +74,3 @@ cashFlow t
 
 wacc :: Val
 wacc = interpolate [(2017, 0.0908), (2021, 0.0908), (2026, 0.0697), (terminalYear, 0.0697)]
-
-
