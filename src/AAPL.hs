@@ -3,17 +3,19 @@ module AAPL
     ) where
 
 import Control.Monad.Except
-import Control.Monad.Reader
 import Valuation
 
-type Val = Value () Double
+type Val = TimeValue () Double
+
+terminalYear :: Year
+terminalYear = 2027
 
 revenue :: Val
-revenue = asks year >>= f
-    where
-        f y | y == 2016 = return 218118
-            | y >  2016 = (1 + revenueGrowthRate) * previous revenue
-            | otherwise = throwError "invalid year"
+revenue 2016    = return 218118
+revenue t
+    | t == 2016 = return 218118
+    | t >  2016 = (1 + revenueGrowthRate t) * revenue (t-1)
+    | otherwise = throwError "invalid year"
 
 revenueGrowthRate :: Val
 revenueGrowthRate = interpolate [
@@ -27,7 +29,7 @@ operatingMargin = interpolate [
     (2026, 0.25  )]
 
 operatingIncome :: Val
-operatingIncome = revenue * operatingMargin
+operatingIncome t = revenue t * operatingMargin t
 
 taxRate :: Val
 taxRate = interpolate [
@@ -36,40 +38,30 @@ taxRate = interpolate [
     (2026, 0.3   )]
 
 noplat :: Val
-noplat = (1 - taxRate) * operatingIncome
+noplat t = (1 - taxRate t) * operatingIncome t
 
 salesToCapitalRatio :: Val
 salesToCapitalRatio = return 1.6
 
 reinvestment :: Val
-reinvestment = do
-    y <- asks year
-    if y < 2027
-        then (revenue - previous revenue) / salesToCapitalRatio
-        else revenueGrowthRate / wacc * noplat
+reinvestment t
+    | t < 2027  = (revenue t - revenue (t-1)) / salesToCapitalRatio t
+    | otherwise = revenueGrowthRate t / wacc t * noplat t
 
 fcff :: Val
-fcff = noplat - reinvestment
+fcff t = noplat t - reinvestment t
 
 terminalValue :: Val
-terminalValue = do
-    y <- asks year
-    ty <- asks terminalYear
-    if y == ty
-        then fcff * (1 + wacc) / (wacc - revenueGrowthRate)
-        else return 0
+terminalValue t
+    | t == terminalYear = fcff t * (1 + wacc t) / (wacc t - revenueGrowthRate t)
+    | otherwise         = return 0
 
 cashFlow :: Val
-cashFlow = do
-    y <- asks year
-    ty <- asks terminalYear
-    let
-        cashFlow'
-            | y <= 2016 = return 0
-            | y <   ty  = fcff
-            | y ==  ty  = terminalValue
-            | otherwise = throwError "invalid year"
-        in cashFlow'
+cashFlow t
+    | t <= 2016           = return 0
+    | t <    terminalYear = fcff t
+    | t ==   terminalYear = terminalValue t
+    | otherwise           = throwError "invalid year"
 
 wacc :: Val
 wacc = interpolate [
@@ -79,7 +71,7 @@ wacc = interpolate [
 
 
 debt :: Val
-debt = return 87549
+debt 2016 = return 87549
 
 cash :: Val
-cash = return 245090 + 150000
+cash 2016 = return $ 245090 + 150000
