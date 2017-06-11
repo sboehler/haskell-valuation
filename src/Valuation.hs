@@ -1,51 +1,97 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Valuation
     ( module Valuation
     ) where
 
 import Control.Applicative
+import Control.Monad.Except
 import Control.Monad.Identity
-import Control.Monad.Trans
-import Control.Monad.Trans.Maybe
-import Control.Monad.Trans.Reader
+import Control.Monad.Reader
 
 type Year = Int
 
-type Value s a = ReaderT s (MaybeT Identity) a
+data Scenario a = Scenario
+    { year :: Int,
+      terminalYear :: Int,
+      scenario :: a
+    }
 
-type TimeValue s a = Year -> Value s a
+newtype Value s a = Value
+    { runValue :: ReaderT (Scenario s) (ExceptT String Identity) a
+    } deriving
+    (
+        Monad,
+        Applicative,
+        Alternative,
+        Functor,
+        MonadReader (Scenario s),
+        MonadError String
+    )
 
-runValuation :: s -> Value s a -> Maybe a
-runValuation s v = runIdentity (runMaybeT (runReaderT v s))
+instance Num a => Num (Value s a) where
+    negate = fmap negate
+    (+) = liftM2 (+)
+    (*) = liftM2 (*)
+    fromInteger = pure . fromInteger
+    abs = fmap abs
+    signum = fmap signum
 
-year :: TimeValue s Year
-year = return
+instance Fractional a => Fractional (Value s a) where
+    (/) = liftM2 (/)
+    fromRational = pure . fromRational
+    recip x = 1 / x
 
-previous :: TimeValue s a -> TimeValue s a
-previous v t = v (t - 1)
+runValuation :: s -> Value s a -> Year -> Year -> Either String a
+runValuation s v ty y = runIdentity (runExceptT (runReaderT (runValue v) (Scenario y ty s)))
 
-next :: TimeValue s a -> TimeValue s a
-next v t = v (t + 1)
+runV :: (Show a, RealFrac a) => Value () a -> Year -> [Year] -> IO ()
+runV v ty (y:ys) = do
+    putStr $ show y
+    putStr "  "
+    case runValuation () v ty y of
+        Left s -> print s
+        Right result -> print result
+    runV v ty ys
+runV _ _ [] = return ()
 
-discount :: TimeValue s Double -> Year -> TimeValue s Double -> TimeValue s Double
-discount wacc t0 v t
-    | t == t0 = v t
-    | otherwise = do
-        w <- wacc (t0 + 1)
-        v' <- discount wacc (t0 + 1) v t
-        return $ (1 / (1 + w)) * v'
 
-npv :: TimeValue s Double -> TimeValue s Double -> TimeValue s Double
-npv w v t0 = do
-    v' <- next v t0
-    w' <- next w t0
-    n' <- npv w v (t0 + 1) <|> return 0
-    return $ 1 / (1 + w') * (n' + v')
+previous :: Value s a -> Value s a
+previous v = do
+    y <- subtract 1 <$> asks year
+    v <@> y
 
-interpolate :: Fractional a => [(Year, a)] -> TimeValue s a
-interpolate [(t0, v0)] y
-    | y == t0 = return v0
-    | otherwise = lift mzero
-interpolate ((t0, v0):(t1, v1):ps) y
-    | y < t0 = lift mzero
-    | (t0 <= y) && (y <= t1) = return $ v0 + (v1 - v0) * fromIntegral (y - t0) / fromIntegral (t1 - t0)
-    | otherwise = interpolate ((t1, v1) : ps) y
+next :: Value s a -> Value s a
+next v = do
+    y <- (+ 1) <$> asks year
+    v <@> y
+
+(<@>) :: Value s a -> Year -> Value s a
+(<@>) v y = local (\x -> x {year = y}) v
+
+discount :: Value s Double -> Year -> Value s Double -> Value s Double
+discount wacc t0 v = do
+    y <- asks year
+    case y of
+      t | t == t0 -> v
+        | otherwise -> discount wacc (t0 + 1) v / (1 + (wacc <@> (t0 + 1)))
+
+npv :: Value s Double -> Value s Double -> Value s Double
+npv w v = do
+    pv <- v
+    fv <- next (npv w v / (1 + w)) <|> return 0
+    return $ pv + fv
+
+
+interpolate :: Fractional a => [(Year, a)] -> Value s a
+interpolate l = do
+    y <- asks year
+    case l of
+        []                       -> throwError "Invalid year"
+        [(t0, v0)]
+            | y >= t0            -> return v0
+            | otherwise          -> throwError "Invalid year"
+        ((t0, v0):(t1, v1):ps)
+            | y == t0            -> return v0
+            | y < t1             -> return $ v0 + (v1 - v0) * fromIntegral (y - t0) / fromIntegral (t1 - t0)
+            | otherwise          -> interpolate $ (t1, v1) : ps

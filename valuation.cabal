@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Valuation, AAPL, MSFT
+  exposed-modules:     Valuation, AAPL
   build-depends:       base >= 4.7 && < 5,
                         transformers,
                         mtl
