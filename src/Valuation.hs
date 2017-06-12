@@ -57,28 +57,34 @@ runV v (y:ys) = do
 runV _ [] = return ()
 
 discount :: TimeValue s Double -> Year -> TimeValue s Double -> TimeValue s Double
-discount wacc t0 v y
-    | y == t0 = v y
-    | otherwise = discount wacc (t0 + 1) v y / (1 + wacc (t0 + 1))
+discount r t0 v t
+    | t == t0 = v t
+    | otherwise = discount r (t0 + 1) v t / (1 + r (t0 + 1))
 
 npv :: TimeValue s Double -> TimeValue s Double -> TimeValue s Double
-npv w v y = do
-    pv <- v y
-    fv <- npv w v y / (1 + w y) <|> return 0
-    return $ pv + fv
-
+npv r v t = v t + (npv r v (t+1) / (1 + r (t+1)) <|> return 0)
 
 interpolate :: Fractional a => [(Year, a)] -> TimeValue s a
 
 interpolate [] _                 = throwError "invalid year"
 
-interpolate [(t0, v0)] y
-    | y >= t0                    = return v0
+interpolate [(t0, v0)] t
+    | t >= t0                    = return v0
     | otherwise                  = throwError "Invalid year"
 
-interpolate ((t0, v0):(t1, v1):ps) y
-    | y == t0            = return v0
-    | y < t1             = return $ v0 + (v1 - v0) * fromIntegral (y - t0) / fromIntegral (t1 - t0)
-    | otherwise          = interpolate ((t1, v1) : ps) y
+interpolate ((t0, v0):(t1, v1):ps) t
+    | t == t0            = return v0
+    | t < t1             = return $ v0 + (v1 - v0) * fromIntegral (t - t0) / fromIntegral (t1 - t0)
+    | otherwise          = interpolate ((t1, v1) : ps) t
 
+linearChange :: Fractional a => TimeValue s a -> Year -> Year -> a -> TimeValue s a
+linearChange v t0 t1 target t
+    | t0 < t && t <= t1 = do
+        base <- v t0
+        return $ base + (target - base) * fromIntegral (t - t0) / fromIntegral (t1 - t0)
+    | t1 < t            = return target
+
+
+pvAnnuity :: Double -> Double -> Int -> Double
+pvAnnuity r pmt n = pmt * (1 - (1+r)^^(-n)) / r
 
