@@ -8,6 +8,8 @@ import Control.Applicative
 import Control.Monad.Except
 import Control.Monad.Identity
 import Control.Monad.Reader
+import Statistics.Distribution
+import Statistics.Distribution.Normal
 
 type Year = Int
 
@@ -77,8 +79,8 @@ interpolate ((t0, v0):(t1, v1):ps) t
     | t < t1             = return $ v0 + (v1 - v0) * fromIntegral (t - t0) / fromIntegral (t1 - t0)
     | otherwise          = interpolate ((t1, v1) : ps) t
 
-linearChange :: Fractional a => TimeValue s a -> Year -> Year -> a -> TimeValue s a
-linearChange v t0 t1 target t
+linear :: Fractional a => TimeValue s a -> Year -> Year -> a -> TimeValue s a
+linear v t0 t1 target t
     | t0 < t && t <= t1 = do
         base <- v t0
         return $ base + (target - base) * fromIntegral (t - t0) / fromIntegral (t1 - t0)
@@ -88,3 +90,9 @@ linearChange v t0 t1 target t
 pvAnnuity :: Double -> Double -> Int -> Double
 pvAnnuity r pmt n = pmt * (1 - (1+r)^^(-n)) / r
 
+blackScholes :: Double -> Double -> Double -> Double -> Double -> Double
+blackScholes sigma r t s k =
+    let d1 = 1 / (sigma * sqrt t) * (log (s / k) + (r + sigma ** t / 2) * t)
+        d2 = d1 - sigma * sqrt t
+     in
+    s * cumulative standard d1 - cumulative standard d2 * k * exp (-r * t)
