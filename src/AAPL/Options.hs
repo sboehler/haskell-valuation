@@ -1,5 +1,5 @@
 module AAPL.Options
-    ( optionValue, adjustedOptionValue, outstandingOptionsValue, shares
+    ( module AAPL.Options
     ) where
 
 import Valuation

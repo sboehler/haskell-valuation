@@ -1,8 +1,7 @@
 
 module AAPL.RD (rdExpenses, rdAmortization) where
 
-import Valuation
-type Val = TimeValue () Double
+import AAPL.Types
 
 -- R&D expenses
 

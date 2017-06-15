@@ -2,6 +2,7 @@
 
 module Valuation
     ( module Valuation
+    , throwError
     ) where
 
 import Control.Applicative
@@ -14,21 +15,12 @@ import Statistics.Distribution.Normal
 type Year = Int
 
 newtype Scenario a = Scenario
-    {
-      scenario :: a
+    { scenario :: a
     }
 
 newtype Value s a = Value
     { runValue :: ReaderT (Scenario s) (ExceptT String Identity) a
-    } deriving
-    (
-        Monad,
-        Applicative,
-        Alternative,
-        Functor,
-        MonadReader (Scenario s),
-        MonadError String
-    )
+    } deriving (Monad, Applicative, Alternative, Functor, MonadReader (Scenario s), MonadError String)
 
 instance Num a => Num (Value s a) where
     negate = fmap negate
@@ -64,22 +56,20 @@ discount r t0 v t
     | otherwise = discount r (t0 + 1) v t / (1 + r (t0 + 1))
 
 npv :: TimeValue s Double -> TimeValue s Double -> TimeValue s Double
-npv r v t = v t + (npv r v (t+1) / (1 + r (t+1)) <|> return 0)
+npv r v t = v t + (npv r v (t + 1) / (1 + r (t + 1)) <|> return 0)
 
 linear :: Fractional a => TimeValue s a -> Year -> Year -> a -> TimeValue s a
 linear v t0 t1 target t
     | t0 < t && t <= t1 = do
         base <- v t0
         return $ base + (target - base) * fromIntegral (t - t0) / fromIntegral (t1 - t0)
-    | t1 < t            = return target
-
+    | t1 < t = return target
 
 pvAnnuity :: Double -> Double -> Int -> Double
-pvAnnuity r pmt n = pmt * (1 - (1+r)^^(-n)) / r
+pvAnnuity r pmt n = pmt * (1 - (1 + r) ^^ (-n)) / r
 
 blackScholes :: Double -> Double -> Double -> Double -> Double -> Double
 blackScholes sigma r t s k =
     let d1 = 1 / (sigma * sqrt t) * (log (s / k) + (r + sigma ** t / 2) * t)
         d2 = d1 - sigma * sqrt t
-     in
-    s * cumulative standard d1 - cumulative standard d2 * k * exp (-r * t)
+    in s * cumulative standard d1 - cumulative standard d2 * k * exp (-r * t)

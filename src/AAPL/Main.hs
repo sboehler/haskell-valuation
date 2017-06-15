@@ -2,13 +2,10 @@ module AAPL.Main
     ( module AAPL.Main
     ) where
 
-import Control.Monad.Except
-import Valuation
+import AAPL.Types
 import AAPL.RD
 import AAPL.Leases
 import AAPL.Options
-
-type Val = TimeValue () Double
 
 terminalYear :: Year
 terminalYear = 2027
