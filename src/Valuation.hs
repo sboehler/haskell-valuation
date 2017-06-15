@@ -66,19 +66,6 @@ discount r t0 v t
 npv :: TimeValue s Double -> TimeValue s Double -> TimeValue s Double
 npv r v t = v t + (npv r v (t+1) / (1 + r (t+1)) <|> return 0)
 
-interpolate :: Fractional a => [(Year, a)] -> TimeValue s a
-
-interpolate [] _                 = throwError "invalid year"
-
-interpolate [(t0, v0)] t
-    | t >= t0                    = return v0
-    | otherwise                  = throwError "Invalid year"
-
-interpolate ((t0, v0):(t1, v1):ps) t
-    | t == t0            = return v0
-    | t < t1             = return $ v0 + (v1 - v0) * fromIntegral (t - t0) / fromIntegral (t1 - t0)
-    | otherwise          = interpolate ((t1, v1) : ps) t
-
 linear :: Fractional a => TimeValue s a -> Year -> Year -> a -> TimeValue s a
 linear v t0 t1 target t
     | t0 < t && t <= t1 = do
